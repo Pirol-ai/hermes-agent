@@ -187,7 +187,7 @@ from plugins.platforms.telegram.telegram_resolved_prompt import edit_keeping_pro
 from plugins.platforms.telegram.telegram_topic_transfer import TopicTransferFn, apply_root_dm_topic_transfer
 from plugins.platforms.telegram.telegram_network import (
     SEED_FALLBACK_IPS, TelegramFallbackTransport, discover_fallback_ips, parse_fallback_ip_env, tcp_keepalive_socket_options)
-from plugins.platforms.telegram.telegram_group_observe import apply_group_observe_attribution
+from plugins.platforms.telegram.telegram_group_observe import shared_sender_suffix, apply_group_observe_attribution
 from plugins.platforms.telegram.telegram_topic_routing import TelegramTopicRoutingMixin
 from utils import env_float, env_int
 
@@ -6551,7 +6551,7 @@ class TelegramAdapter(TelegramHeldInboundMixin, TelegramTopicRoutingMixin, BaseP
     def _text_batch_key(self, event: MessageEvent) -> str:
         """Session-scoped batching key; topic recovery first so DM-topic batches coalesce on the recovered lane."""
         self._apply_topic_recovery(event)
-        return super()._text_batch_key(event)
+        return super()._text_batch_key(event) + shared_sender_suffix(event)
 
     def _enqueue_text_event(self, event: MessageEvent) -> None:
         """Buffer a text chunk, or hold it while delayed delivery must be dropped."""
@@ -6630,6 +6630,7 @@ class TelegramAdapter(TelegramHeldInboundMixin, TelegramTopicRoutingMixin, BaseP
         """Return a batching key for Telegram photos/albums."""
         session_key = self._event_session_key(event)
         media_group_id = getattr(msg, "media_group_id", None)
+        session_key += shared_sender_suffix(event)
         return f"{session_key}:album:{media_group_id}" if media_group_id else f"{session_key}:photo-burst"
 
     async def _flush_photo_batch(self, batch_key: str) -> None:
